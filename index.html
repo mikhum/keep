@@ -11,6 +11,7 @@
   <style>
     body { font-family: 'Roboto', sans-serif; }
     .drag-over { border-top: 2px solid #3b82f6; }
+    .card-drag-over { border-left: 4px solid #3b82f6 !important; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
@@ -113,7 +114,6 @@
         </div>
 
         <div class="flex items-center space-x-2">
-          <!-- Papperskorg i modalen -->
           <button onclick="deleteNoteFromModal()" title="Flytta till papperskorgen" class="p-2 hover:bg-black/5 rounded-full text-red-600 transition">
             <span class="material-icons-outlined">delete</span>
           </button>
@@ -134,6 +134,7 @@
     let selectedNewColor = '#ffffff';
     let currentEditNoteId = null;
     let draggedItemId = null;
+    let draggedCardId = null;
     let notesData = { notes: [], trash: [] };
     let tokenClient;
 
@@ -298,7 +299,6 @@
       }
     }
 
-    /* RADERA ENSTAKA PUNKT */
     async function deleteItem(noteId, itemId) {
       const note = notesData.notes.find(n => n.id === noteId);
       if (note && note.items) {
@@ -309,7 +309,6 @@
       }
     }
 
-    /* RADERA/ÅTERSTÄLLA KORT (PAPPERSKORG) */
     async function moveToTrash(id, event) {
       if(event) event.stopPropagation();
       const noteIndex = notesData.notes.findIndex(n => n.id === id);
@@ -351,7 +350,7 @@
       return date.toLocaleString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
-    /* MODAL-LOGIK & DRAG AND DROP */
+    /* MODAL-LOGIK */
     function openEditModal(noteId) {
       currentEditNoteId = noteId;
       renderModalContent();
@@ -384,14 +383,13 @@
       const activeItems = note.items ? note.items.filter(i => !i.is_completed) : [];
       const completedItems = note.items ? note.items.filter(i => i.is_completed) : [];
 
-      // Rendera Aktiva med Delete-knapp på punktnivå
       activeItemsContainer.innerHTML = activeItems.map(item => `
         <div class="flex items-center space-x-2 py-1 px-1 rounded hover:bg-black/5 transition group/item"
              draggable="true" 
-             ondragstart="handleDragStart(event, '${item.id}')" 
-             ondragover="handleDragOver(event)" 
-             ondragleave="handleDragLeave(event)" 
-             ondrop="handleDrop(event, '${item.id}')">
+             ondragstart="handleItemDragStart(event, '${item.id}')" 
+             ondragover="handleItemDragOver(event)" 
+             ondragleave="handleItemDragLeave(event)" 
+             ondrop="handleItemDrop(event, '${item.id}')">
           <span class="material-icons-outlined text-gray-400 text-sm cursor-grab active:cursor-grabbing">drag_indicator</span>
           <input type="checkbox" onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300 cursor-pointer">
           <input type="text" value="${item.text}" onchange="updateItemText('${note.id}', '${item.id}', this.value)" class="w-full text-sm bg-transparent outline-none text-gray-800">
@@ -401,7 +399,6 @@
         </div>
       `).join('');
 
-      // Rendera Avklarade med Delete-knapp på punktnivå
       if (completedItems.length > 0) {
         completedSection.classList.remove('hidden');
         completedItemsContainer.innerHTML = completedItems.map(item => `
@@ -423,23 +420,28 @@
       }
     }
 
-    function handleDragStart(event, itemId) {
+    /* DRAG & DROP FÖR ENSTAKA PUNKTER INNE I MODALEN */
+    function handleItemDragStart(event, itemId) {
       draggedItemId = itemId;
       event.dataTransfer.effectAllowed = 'move';
+      event.stopPropagation();
     }
 
-    function handleDragOver(event) {
+    function handleItemDragOver(event) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
       event.currentTarget.classList.add('drag-over');
+      event.stopPropagation();
     }
 
-    function handleDragLeave(event) {
+    function handleItemDragLeave(event) {
       event.currentTarget.classList.remove('drag-over');
+      event.stopPropagation();
     }
 
-    async function handleDrop(event, targetItemId) {
+    async function handleItemDrop(event, targetItemId) {
       event.preventDefault();
+      event.stopPropagation();
       event.currentTarget.classList.remove('drag-over');
 
       if (!draggedItemId || draggedItemId === targetItemId) return;
@@ -459,6 +461,41 @@
         }
       }
       draggedItemId = null;
+    }
+
+    /* DRAG & DROP FÖR HELA KORT I RUTNÄTET */
+    function handleCardDragStart(event, cardId) {
+      draggedCardId = cardId;
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleCardDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      event.currentTarget.classList.add('card-drag-over');
+    }
+
+    function handleCardDragLeave(event) {
+      event.currentTarget.classList.remove('card-drag-over');
+    }
+
+    async function handleCardDrop(event, targetCardId) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('card-drag-over');
+
+      if (!draggedCardId || draggedCardId === targetCardId) return;
+
+      const draggedIndex = notesData.notes.findIndex(n => n.id === draggedCardId);
+      const targetIndex = notesData.notes.findIndex(n => n.id === targetCardId);
+
+      if (draggedIndex !== -1 && targetIndex !== -1) {
+        const [draggedCard] = notesData.notes.splice(draggedIndex, 1);
+        notesData.notes.splice(targetIndex, 0, draggedCard);
+
+        renderNotes();
+        await saveToDrive();
+      }
+      draggedCardId = null;
     }
 
     async function updateModalNote() {
@@ -517,7 +554,6 @@
     }
 
     function renderNotes() {
-      // Rendera Aktiva Kort
       const container = document.getElementById('notes-container');
       container.innerHTML = notesData.notes.map(note => {
         const hasItems = note.items && note.items.length > 0;
@@ -526,7 +562,12 @@
 
         return `
           <div onclick="openEditModal('${note.id}')" 
-               class="break-inside-avoid rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-200 relative group flex flex-col justify-between cursor-pointer" 
+               draggable="true"
+               ondragstart="handleCardDragStart(event, '${note.id}')"
+               ondragover="handleCardDragOver(event)"
+               ondragleave="handleCardDragLeave(event)"
+               ondrop="handleCardDrop(event, '${note.id}')"
+               class="break-inside-avoid rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-200 relative group flex flex-col justify-between cursor-grab active:cursor-grabbing" 
                style="background-color: ${note.color}">
             <div>
               ${note.title ? `<h3 class="font-medium text-gray-900 mb-2">${note.title}</h3>` : ''}
@@ -563,7 +604,6 @@
         `;
       }).join('');
 
-      // Rendera Papperskorg
       const trashSection = document.getElementById('trash-section');
       const trashContainer = document.getElementById('trash-container');
 
