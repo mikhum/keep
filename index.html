@@ -31,11 +31,10 @@
 
   <main class="max-w-5xl mx-auto p-4">
     <div id="app-content" class="hidden">
-      <!-- Form för att skapa nytt kort -->
+      <!-- Skapa nytt kort -->
       <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md border border-gray-200 p-4 mb-8">
         <input type="text" id="new-title" placeholder="Titel" class="w-full font-medium text-base outline-none mb-3 text-gray-800 placeholder-gray-500">
         
-        <!-- Input-fält för nya punkter -->
         <div id="items-input-container" class="space-y-2 mb-3">
           <div class="flex items-center space-x-2">
             <span class="material-icons-outlined text-gray-400 text-sm">add</span>
@@ -48,12 +47,12 @@
         </button>
 
         <div class="flex justify-between items-center pt-2 border-t border-gray-100">
-          <div class="flex space-x-1" id="color-picker">
-            <button onclick="selectColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border border-gray-300 ring-2 ring-blue-500" data-color="#ffffff"></button>
-            <button onclick="selectColor('#fef3c7')" class="w-6 h-6 rounded-full bg-amber-100 border border-amber-200" data-color="#fef3c7"></button>
-            <button onclick="selectColor('#dcfce7')" class="w-6 h-6 rounded-full bg-green-100 border border-green-200" data-color="#dcfce7"></button>
-            <button onclick="selectColor('#e0f2fe')" class="w-6 h-6 rounded-full bg-sky-100 border border-sky-200" data-color="#e0f2fe"></button>
-            <button onclick="selectColor('#fce7f3')" class="w-6 h-6 rounded-full bg-pink-100 border border-pink-200" data-color="#fce7f3"></button>
+          <div class="flex space-x-1" id="new-color-picker">
+            <button onclick="selectNewColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border border-gray-300 ring-2 ring-blue-500" data-color="#ffffff"></button>
+            <button onclick="selectNewColor('#fef3c7')" class="w-6 h-6 rounded-full bg-amber-100 border border-amber-200" data-color="#fef3c7"></button>
+            <button onclick="selectNewColor('#dcfce7')" class="w-6 h-6 rounded-full bg-green-100 border border-green-200" data-color="#dcfce7"></button>
+            <button onclick="selectNewColor('#e0f2fe')" class="w-6 h-6 rounded-full bg-sky-100 border border-sky-200" data-color="#e0f2fe"></button>
+            <button onclick="selectNewColor('#fce7f3')" class="w-6 h-6 rounded-full bg-pink-100 border border-pink-200" data-color="#fce7f3"></button>
           </div>
           <button onclick="addNote()" class="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-700 transition">
             Spara
@@ -66,13 +65,64 @@
     </div>
   </main>
 
+  <!-- REDIGERINGSMODAL (Förstorat läge) -->
+  <div id="edit-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div id="modal-card" class="w-full max-w-lg rounded-xl shadow-2xl p-6 relative flex flex-col max-h-[90vh] transition-all">
+      
+      <!-- Stäng-knapp -->
+      <button onclick="closeEditModal()" class="absolute top-3 right-3 p-1 rounded-full hover:bg-black/5 text-gray-500">
+        <span class="material-icons-outlined">close</span>
+      </button>
+
+      <!-- Modal Titel -->
+      <input type="text" id="modal-title" oninput="updateModalNote()" placeholder="Titel" class="font-medium text-lg outline-none bg-transparent mb-4 text-gray-900 pr-8">
+
+      <!-- Scrollbart innehåll för punkter -->
+      <div class="overflow-y-auto flex-grow space-y-4 pr-1">
+        
+        <!-- Aktiva punkter -->
+        <div>
+          <div id="modal-active-items" class="space-y-2"></div>
+          <div class="flex items-center space-x-2 mt-3">
+            <span class="material-icons-outlined text-gray-400 text-sm">add</span>
+            <input type="text" id="modal-new-item" placeholder="Lägg till punkt..." onkeydown="handleModalAddItem(event)" class="w-full text-sm outline-none bg-transparent border-b border-transparent focus:border-gray-400 py-1">
+          </div>
+        </div>
+
+        <!-- Arkiverade / Avklarade punkter -->
+        <div id="modal-completed-section" class="pt-4 border-t border-black/10 hidden">
+          <div class="text-xs font-medium text-gray-500 mb-2 flex items-center">
+            <span class="material-icons-outlined text-sm mr-1">done_all</span> Avklarade punkter
+          </div>
+          <div id="modal-completed-items" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Footer: Färgbyte & Tidsstämplar -->
+      <div class="mt-6 pt-4 border-t border-black/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div class="flex space-x-1" id="modal-color-picker">
+          <button onclick="changeModalColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border border-gray-300" data-color="#ffffff"></button>
+          <button onclick="changeModalColor('#fef3c7')" class="w-6 h-6 rounded-full bg-amber-100 border border-amber-200" data-color="#fef3c7"></button>
+          <button onclick="changeModalColor('#dcfce7')" class="w-6 h-6 rounded-full bg-green-100 border border-green-200" data-color="#dcfce7"></button>
+          <button onclick="changeModalColor('#e0f2fe')" class="w-6 h-6 rounded-full bg-sky-100 border border-sky-200" data-color="#e0f2fe"></button>
+          <button onclick="changeModalColor('#fce7f3')" class="w-6 h-6 rounded-full bg-pink-100 border border-pink-200" data-color="#fce7f3"></button>
+        </div>
+
+        <button onclick="closeEditModal()" class="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-700 transition self-end">
+          Klar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const CLIENT_ID = '940508107225-2h91m1o4he6r27g1q7hgtaq0f6127dd8.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
     
     let accessToken = null;
     let fileId = null;
-    let selectedColor = '#ffffff';
+    let selectedNewColor = '#ffffff';
+    let currentEditNoteId = null;
     let notesData = { notes: [] };
     let tokenClient;
 
@@ -92,13 +142,11 @@
       });
     };
 
-    function handleAuth() {
-      tokenClient.requestAccessToken();
-    }
+    function handleAuth() { tokenClient.requestAccessToken(); }
 
-    function selectColor(color) {
-      selectedColor = color;
-      document.querySelectorAll('#color-picker button').forEach(btn => {
+    function selectNewColor(color) {
+      selectedNewColor = color;
+      document.querySelectorAll('#new-color-picker button').forEach(btn => {
         btn.classList.toggle('ring-2', btn.dataset.color === color);
         btn.classList.toggle('ring-blue-500', btn.dataset.color === color);
       });
@@ -192,13 +240,12 @@
         id: Date.now().toString(),
         title: titleInput.value.trim(),
         items: items,
-        color: selectedColor,
+        color: selectedNewColor,
         created_at: new Date().toISOString()
       };
 
       notesData.notes.unshift(newNote);
       
-      // Återställ formuläret
       titleInput.value = '';
       document.getElementById('items-input-container').innerHTML = `
         <div class="flex items-center space-x-2">
@@ -206,13 +253,14 @@
           <input type="text" placeholder="Lägg till punkt..." onkeydown="handleItemKeyDown(event)" class="new-item-input w-full text-sm outline-none text-gray-600 placeholder-gray-400 border-b border-transparent focus:border-gray-300 py-0.5">
         </div>
       `;
-      selectColor('#ffffff');
+      selectNewColor('#ffffff');
       
       renderNotes();
       await saveToDrive();
     }
 
-    async function toggleItem(noteId, itemId) {
+    async function toggleItem(noteId, itemId, event) {
+      if(event) event.stopPropagation();
       const note = notesData.notes.find(n => n.id === noteId);
       if (note && note.items) {
         const item = note.items.find(i => i.id === itemId);
@@ -220,14 +268,17 @@
           item.is_completed = !item.is_completed;
           item.completed_at = item.is_completed ? new Date().toISOString() : null;
           renderNotes();
+          if (currentEditNoteId === noteId) renderModalContent();
           await saveToDrive();
         }
       }
     }
 
-    async function deleteNote(id) {
+    async function deleteNote(id, event) {
+      if(event) event.stopPropagation();
       notesData.notes = notesData.notes.filter(n => n.id !== id);
       renderNotes();
+      if (currentEditNoteId === id) closeEditModal();
       await saveToDrive();
     }
 
@@ -237,61 +288,163 @@
       return date.toLocaleString('sv-SE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
+    /* MODAL-LOGIK (Förstorat läge) */
+    function openEditModal(noteId) {
+      currentEditNoteId = noteId;
+      renderModalContent();
+      document.getElementById('edit-modal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      currentEditNoteId = null;
+      document.getElementById('edit-modal').classList.add('hidden');
+    }
+
+    function renderModalContent() {
+      const note = notesData.notes.find(n => n.id === currentEditNoteId);
+      if (!note) return;
+
+      const modalCard = document.getElementById('modal-card');
+      modalCard.style.backgroundColor = note.color;
+
+      document.getElementById('modal-title').value = note.title || '';
+
+      // Markera vald färg i modalen
+      document.querySelectorAll('#modal-color-picker button').forEach(btn => {
+        btn.classList.toggle('ring-2', btn.dataset.color === note.color);
+        btn.classList.toggle('ring-blue-500', btn.dataset.color === note.color);
+      });
+
+      const activeItemsContainer = document.getElementById('modal-active-items');
+      const completedItemsContainer = document.getElementById('modal-completed-items');
+      const completedSection = document.getElementById('modal-completed-section');
+
+      const activeItems = note.items ? note.items.filter(i => !i.is_completed) : [];
+      const completedItems = note.items ? note.items.filter(i => i.is_completed) : [];
+
+      // Rendera Aktiva
+      activeItemsContainer.innerHTML = activeItems.map(item => `
+        <div class="flex items-center space-x-2">
+          <input type="checkbox" onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300">
+          <input type="text" value="${item.text}" onchange="updateItemText('${note.id}', '${item.id}', this.value)" class="w-full text-sm bg-transparent outline-none text-gray-800">
+        </div>
+      `).join('');
+
+      // Rendera Arkiverade/Avklarade
+      if (completedItems.length > 0) {
+        completedSection.classList.remove('hidden');
+        completedItemsContainer.innerHTML = completedItems.map(item => `
+          <div class="flex items-center justify-between space-x-2 opacity-60">
+            <div class="flex items-center space-x-2 flex-grow">
+              <input type="checkbox" checked onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300">
+              <span class="text-sm line-through text-gray-700">${item.text}</span>
+            </div>
+            <span class="text-[10px] text-gray-500 whitespace-nowrap">${formatDate(item.completed_at)}</span>
+          </div>
+        `).join('');
+      } else {
+        completedSection.classList.add('hidden');
+      }
+    }
+
+    async function updateModalNote() {
+      const note = notesData.notes.find(n => n.id === currentEditNoteId);
+      if (note) {
+        note.title = document.getElementById('modal-title').value;
+        renderNotes();
+        await saveToDrive();
+      }
+    }
+
+    async function changeModalColor(color) {
+      const note = notesData.notes.find(n => n.id === currentEditNoteId);
+      if (note) {
+        note.color = color;
+        renderModalContent();
+        renderNotes();
+        await saveToDrive();
+      }
+    }
+
+    async function handleModalAddItem(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const input = document.getElementById('modal-new-item');
+        if (!input.value.trim()) return;
+
+        const note = notesData.notes.find(n => n.id === currentEditNoteId);
+        if (note) {
+          if (!note.items) note.items = [];
+          note.items.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+            text: input.value.trim(),
+            is_completed: false,
+            created_at: new Date().toISOString(),
+            completed_at: null
+          });
+          input.value = '';
+          renderModalContent();
+          renderNotes();
+          await saveToDrive();
+        }
+      }
+    }
+
+    async function updateItemText(noteId, itemId, newText) {
+      const note = notesData.notes.find(n => n.id === noteId);
+      if (note && note.items) {
+        const item = note.items.find(i => i.id === itemId);
+        if (item) {
+          item.text = newText;
+          renderNotes();
+          await saveToDrive();
+        }
+      }
+    }
+
     function renderNotes() {
       const container = document.getElementById('notes-container');
       container.innerHTML = notesData.notes.map(note => {
         const hasItems = note.items && note.items.length > 0;
-        const allCompleted = hasItems && note.items.every(i => i.is_completed);
-        
-        // Hitta den senaste tidpunkten en punkt blev avklarad
-        const completedDates = hasItems ? note.items.map(i => i.completed_at).filter(Boolean) : [];
-        const lastCompletedAt = completedDates.length > 0 ? completedDates.sort().pop() : null;
+        const activeItems = hasItems ? note.items.filter(i => !i.is_completed) : [];
+        const completedItems = hasItems ? note.items.filter(i => i.is_completed) : [];
 
         return `
-          <div class="break-inside-avoid rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-200 relative group flex flex-col justify-between" 
+          <div onclick="openEditModal('${note.id}')" 
+               class="break-inside-avoid rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-200 relative group flex flex-col justify-between cursor-pointer" 
                style="background-color: ${note.color}">
             <div>
               ${note.title ? `<h3 class="font-medium text-gray-900 mb-2">${note.title}</h3>` : ''}
               
-              <!-- Punkter i kortet -->
+              <!-- Aktiva punkter -->
               <div class="space-y-1.5 mb-2">
-                ${hasItems ? note.items.map(item => `
-                  <div class="flex items-start justify-between space-x-2 group/item">
-                    <label class="flex items-start space-x-2 cursor-pointer flex-grow min-w-0">
-                      <input type="checkbox" ${item.is_completed ? 'checked' : ''} 
-                             onchange="toggleItem('${note.id}', '${item.id}')" 
-                             class="mt-1 h-3.5 w-3.5 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer">
-                      <span class="text-sm text-gray-700 break-words ${item.is_completed ? 'line-through text-gray-400' : ''}">
-                        ${item.text}
-                      </span>
-                    </label>
-                    ${item.completed_at ? `
-                      <span class="text-[10px] text-emerald-600 font-medium whitespace-nowrap pt-0.5" title="Avklarad: ${formatDate(item.completed_at)}">
-                        ${formatDate(item.completed_at)}
-                      </span>
-                    ` : ''}
+                ${activeItems.map(item => `
+                  <div class="flex items-start space-x-2">
+                    <input type="checkbox" onchange="toggleItem('${note.id}', '${item.id}', event)" class="mt-1 h-3.5 w-3.5 text-blue-600 rounded border-gray-300 cursor-pointer">
+                    <span class="text-sm text-gray-700 break-words">${item.text}</span>
                   </div>
-                `).join('') : ''}
+                `).join('')}
               </div>
+
+              <!-- Arkiverade/Avklarade punkter sammanfattning -->
+              ${completedItems.length > 0 ? `
+                <div class="mt-2 pt-2 border-t border-black/5 text-xs text-gray-500">
+                  <span class="line-through">${completedItems.length} avklarade punkter</span>
+                </div>
+              ` : ''}
             </div>
 
-            <!-- Tidslinje / Historik i kortets fot -->
+            <!-- Tidslinje -->
             <div class="mt-3 pt-2 border-t border-black/5 text-[11px] text-gray-500 space-y-0.5">
               <div class="flex items-center space-x-1">
                 <span class="material-icons-outlined text-xs">add_circle_outline</span>
                 <span>Skapad: ${formatDate(note.created_at)}</span>
               </div>
-              ${allCompleted && lastCompletedAt ? `
-                <div class="flex items-center space-x-1 text-emerald-700 font-medium">
-                  <span class="material-icons-outlined text-xs">check_circle_outline</span>
-                  <span>Alla klart: ${formatDate(lastCompletedAt)}</span>
-                </div>
-              ` : ''}
             </div>
 
             <!-- Åtgärder -->
             <div class="mt-2 flex justify-end items-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onclick="deleteNote('${note.id}')" title="Ta bort kort" class="p-1 hover:bg-black/5 rounded-full text-red-600">
+              <button onclick="deleteNote('${note.id}', event)" title="Ta bort kort" class="p-1 hover:bg-black/5 rounded-full text-red-600">
                 <span class="material-icons-outlined text-sm">delete</span>
               </button>
             </div>
