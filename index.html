@@ -61,8 +61,16 @@
         </div>
       </div>
 
-      <!-- Rutnät för sparade kort -->
+      <!-- Rutnät för aktiva kort -->
       <div id="notes-container" class="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4"></div>
+
+      <!-- PAPPERSKORG SEKTION -->
+      <div id="trash-section" class="mt-16 pt-8 border-t border-gray-300 hidden">
+        <h2 class="text-lg font-medium text-gray-600 mb-4 flex items-center">
+          <span class="material-icons-outlined mr-2">delete</span> Papperskorg
+        </h2>
+        <div id="trash-container" class="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4 opacity-75"></div>
+      </div>
     </div>
   </main>
 
@@ -78,7 +86,6 @@
 
       <div class="overflow-y-auto flex-grow space-y-4 pr-1">
         <div>
-          <!-- Container för aktiva punkter med drag-and-drop -->
           <div id="modal-active-items" class="space-y-2"></div>
           
           <div class="flex items-center space-x-2 mt-3 pl-6">
@@ -95,7 +102,8 @@
         </div>
       </div>
 
-      <div class="mt-6 pt-4 border-t border-black/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <!-- Modal Footer -->
+      <div class="mt-6 pt-4 border-t border-black/10 flex justify-between items-center">
         <div class="flex space-x-1" id="modal-color-picker">
           <button onclick="changeModalColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border border-gray-300" data-color="#ffffff"></button>
           <button onclick="changeModalColor('#fef3c7')" class="w-6 h-6 rounded-full bg-amber-100 border border-amber-200" data-color="#fef3c7"></button>
@@ -104,9 +112,15 @@
           <button onclick="changeModalColor('#fce7f3')" class="w-6 h-6 rounded-full bg-pink-100 border border-pink-200" data-color="#fce7f3"></button>
         </div>
 
-        <button onclick="closeEditModal()" class="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-700 transition self-end">
-          Klar
-        </button>
+        <div class="flex items-center space-x-2">
+          <!-- Papperskorg i modalen -->
+          <button onclick="deleteNoteFromModal()" title="Flytta till papperskorgen" class="p-2 hover:bg-black/5 rounded-full text-red-600 transition">
+            <span class="material-icons-outlined">delete</span>
+          </button>
+          <button onclick="closeEditModal()" class="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-700 transition">
+            Klar
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -120,7 +134,7 @@
     let selectedNewColor = '#ffffff';
     let currentEditNoteId = null;
     let draggedItemId = null;
-    let notesData = { notes: [] };
+    let notesData = { notes: [], trash: [] };
     let tokenClient;
 
     window.onload = () => {
@@ -194,6 +208,7 @@
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         notesData = await fileRes.json();
+        if (!notesData.trash) notesData.trash = [];
       } else {
         await createDriveFile();
       }
@@ -283,11 +298,50 @@
       }
     }
 
-    async function deleteNote(id, event) {
+    /* RADERA ENSTAKA PUNKT */
+    async function deleteItem(noteId, itemId) {
+      const note = notesData.notes.find(n => n.id === noteId);
+      if (note && note.items) {
+        note.items = note.items.filter(i => i.id !== itemId);
+        renderModalContent();
+        renderNotes();
+        await saveToDrive();
+      }
+    }
+
+    /* RADERA/ÅTERSTÄLLA KORT (PAPPERSKORG) */
+    async function moveToTrash(id, event) {
       if(event) event.stopPropagation();
-      notesData.notes = notesData.notes.filter(n => n.id !== id);
+      const noteIndex = notesData.notes.findIndex(n => n.id === id);
+      if (noteIndex !== -1) {
+        const [removedNote] = notesData.notes.splice(noteIndex, 1);
+        if (!notesData.trash) notesData.trash = [];
+        notesData.trash.unshift(removedNote);
+        renderNotes();
+        if (currentEditNoteId === id) closeEditModal();
+        await saveToDrive();
+      }
+    }
+
+    function deleteNoteFromModal() {
+      if (currentEditNoteId) {
+        moveToTrash(currentEditNoteId);
+      }
+    }
+
+    async function restoreFromTrash(id) {
+      const trashIndex = notesData.trash.findIndex(n => n.id === id);
+      if (trashIndex !== -1) {
+        const [restoredNote] = notesData.trash.splice(trashIndex, 1);
+        notesData.notes.unshift(restoredNote);
+        renderNotes();
+        await saveToDrive();
+      }
+    }
+
+    async function permanentlyDelete(id) {
+      notesData.trash = notesData.trash.filter(n => n.id !== id);
       renderNotes();
-      if (currentEditNoteId === id) closeEditModal();
       await saveToDrive();
     }
 
@@ -330,9 +384,9 @@
       const activeItems = note.items ? note.items.filter(i => !i.is_completed) : [];
       const completedItems = note.items ? note.items.filter(i => i.is_completed) : [];
 
-      // Rendera Aktiva med Drag & Drop
+      // Rendera Aktiva med Delete-knapp på punktnivå
       activeItemsContainer.innerHTML = activeItems.map(item => `
-        <div class="flex items-center space-x-2 py-1 px-1 rounded hover:bg-black/5 transition"
+        <div class="flex items-center space-x-2 py-1 px-1 rounded hover:bg-black/5 transition group/item"
              draggable="true" 
              ondragstart="handleDragStart(event, '${item.id}')" 
              ondragover="handleDragOver(event)" 
@@ -341,18 +395,27 @@
           <span class="material-icons-outlined text-gray-400 text-sm cursor-grab active:cursor-grabbing">drag_indicator</span>
           <input type="checkbox" onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300 cursor-pointer">
           <input type="text" value="${item.text}" onchange="updateItemText('${note.id}', '${item.id}', this.value)" class="w-full text-sm bg-transparent outline-none text-gray-800">
+          <button onclick="deleteItem('${note.id}', '${item.id}')" class="text-gray-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition p-0.5">
+            <span class="material-icons-outlined text-sm">close</span>
+          </button>
         </div>
       `).join('');
 
+      // Rendera Avklarade med Delete-knapp på punktnivå
       if (completedItems.length > 0) {
         completedSection.classList.remove('hidden');
         completedItemsContainer.innerHTML = completedItems.map(item => `
-          <div class="flex items-center justify-between space-x-2 opacity-60 pl-6">
+          <div class="flex items-center justify-between space-x-2 opacity-60 pl-6 group/item">
             <div class="flex items-center space-x-2 flex-grow">
               <input type="checkbox" checked onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300">
               <span class="text-sm line-through text-gray-700">${item.text}</span>
             </div>
-            <span class="text-[10px] text-gray-500 whitespace-nowrap">${formatDate(item.completed_at)}</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] text-gray-500 whitespace-nowrap">${formatDate(item.completed_at)}</span>
+              <button onclick="deleteItem('${note.id}', '${item.id}')" class="text-gray-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition p-0.5">
+                <span class="material-icons-outlined text-sm">close</span>
+              </button>
+            </div>
           </div>
         `).join('');
       } else {
@@ -360,7 +423,6 @@
       }
     }
 
-    /* Drag and Drop händelsehanterare */
     function handleDragStart(event, itemId) {
       draggedItemId = itemId;
       event.dataTransfer.effectAllowed = 'move';
@@ -388,7 +450,6 @@
         const targetIndex = note.items.findIndex(i => i.id === targetItemId);
 
         if (draggedIndex !== -1 && targetIndex !== -1) {
-          // Flytta elementet i arrayen
           const [draggedItem] = note.items.splice(draggedIndex, 1);
           note.items.splice(targetIndex, 0, draggedItem);
 
@@ -456,6 +517,7 @@
     }
 
     function renderNotes() {
+      // Rendera Aktiva Kort
       const container = document.getElementById('notes-container');
       container.innerHTML = notesData.notes.map(note => {
         const hasItems = note.items && note.items.length > 0;
@@ -493,13 +555,43 @@
             </div>
 
             <div class="mt-2 flex justify-end items-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onclick="deleteNote('${note.id}', event)" title="Ta bort kort" class="p-1 hover:bg-black/5 rounded-full text-red-600">
+              <button onclick="moveToTrash('${note.id}', event)" title="Flytta till papperskorgen" class="p-1 hover:bg-black/5 rounded-full text-red-600">
                 <span class="material-icons-outlined text-sm">delete</span>
               </button>
             </div>
           </div>
         `;
       }).join('');
+
+      // Rendera Papperskorg
+      const trashSection = document.getElementById('trash-section');
+      const trashContainer = document.getElementById('trash-container');
+
+      if (notesData.trash && notesData.trash.length > 0) {
+        trashSection.classList.remove('hidden');
+        trashContainer.innerHTML = notesData.trash.map(note => `
+          <div class="break-inside-avoid rounded-xl p-4 border border-gray-300 relative flex flex-col justify-between" 
+               style="background-color: ${note.color}">
+            <div>
+              ${note.title ? `<h3 class="font-medium text-gray-700 mb-2">${note.title}</h3>` : ''}
+              <div class="space-y-1 mb-2 text-sm text-gray-600">
+                ${(note.items || []).map(i => `<div>• ${i.text}</div>`).join('')}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-2 border-t border-black/5 flex justify-between items-center">
+              <button onclick="restoreFromTrash('${note.id}')" title="Återställ kort" class="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center">
+                <span class="material-icons-outlined text-sm mr-1">restore</span> Återställ
+              </button>
+              <button onclick="permanentlyDelete('${note.id}')" title="Radera permanent" class="text-xs font-medium text-red-600 hover:text-red-800 flex items-center">
+                <span class="material-icons-outlined text-sm mr-1">delete_forever</span> Radera permanent
+              </button>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        trashSection.classList.add('hidden');
+      }
     }
   </script>
 </body>
