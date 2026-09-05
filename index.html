@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>Keep Clone Pilot</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <h1>Google Keep Klon med Tidslinje</h1>
+  
+  <button id="login-btn" onclick="handleAuth()">Koppla till Google Drive</button>
+  <div id="app" style="display:none; margin-top: 20px;">
+    <h2>Dina anteckningar</h2>
+    <button onclick="addNote()">+ Skapa ny anteckning</button>
+    <div id="notes-container"></div>
+  </div>
+
+  <script>
+    const CLIENT_ID = 'DITT_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    
+    let accessToken = null;
+    let fileId = null;
+    let notesData = { notes: [] };
+
+    // Initialize Google Auth Token Client
+    let tokenClient;
+
+    window.onload = () => {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: async (response) => {
+          if (response.access_token) {
+            accessToken = response.access_token;
+            document.getElementById('login-btn').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            await loadOrInitDriveFile();
+          }
+        },
+      });
+    };
+
+    function handleAuth() {
+      tokenClient.requestAccessToken();
+    }
+
+    // Sök efter befintlig keep_notes.json eller skapa en ny
+    async function loadOrInitDriveFile() {
+      const searchRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='keep_notes.json' and trashed=false`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const searchData = await searchRes.json();
+
+      if (searchData.files && searchData.files.length > 0) {
+        fileId = searchData.files[0].id;
+        // Hämta innehåll
+        const fileRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        notesData = await fileRes.json();
+      } else {
+        // Skapa ny fil om den inte finns
+        await createDriveFile();
+      }
+      renderNotes();
+    }
+
+    async function createDriveFile() {
+      const metadata = { name: 'keep_notes.json', mimeType: 'application/json' };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', new Blob([JSON.stringify(notesData)], { type: 'application/json' }));
+
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form
+      });
+      const file = await res.json();
+      fileId = file.id;
+    }
+
+    async function saveToDrive() {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(notesData)
+      });
+    }
+
+    async function addNote() {
+      const title = prompt("Titel:");
+      const content = prompt("Innehåll:");
+      if (!title && !content) return;
+
+      const newNote = {
+        id: Date.now().toString(),
+        title: title || '',
+        content: content || '',
+        is_completed: false,
+        created_at: new Date().toISOString(),
+        completed_at: null
+      };
+
+      notesData.notes.push(newNote);
+      renderNotes();
+      await saveToDrive();
+    }
+
+    async function toggleComplete(id) {
+      const note = notesData.notes.find(n => n.id === id);
+      if (note) {
+        note.is_completed = !note.is_completed;
+        note.completed_at = note.is_completed ? new Date().toISOString() : null;
+        renderNotes();
+        await saveToDrive();
+      }
+    }
+
+    function renderNotes() {
+      const container = document.getElementById('notes-container');
+      container.innerHTML = notesData.notes.map(note => `
+        <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0; background: ${note.is_completed ? '#e2e8f0' : '#fff'}">
+          <h3>${note.title}</h3>
+          <p>${note.content}</p>
+          <small>Skapad: ${new Date(note.created_at).toLocaleString()}</small><br/>
+          ${note.completed_at ? `<small>Avslutad: ${new Date(note.completed_at).toLocaleString()}</small><br/>` : ''}
+          <button onclick="toggleComplete('${note.id}')">
+            ${note.is_completed ? 'Återöppna' : 'Markera som klar'}
+          </button>
+        </div>
+      `).join('');
+    }
+  </script>
+</body>
+</html>
