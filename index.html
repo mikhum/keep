@@ -10,6 +10,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { font-family: 'Roboto', sans-serif; }
+    .drag-over { border-top: 2px solid #3b82f6; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
@@ -77,15 +78,17 @@
 
       <div class="overflow-y-auto flex-grow space-y-4 pr-1">
         <div>
+          <!-- Container för aktiva punkter med drag-and-drop -->
           <div id="modal-active-items" class="space-y-2"></div>
-          <div class="flex items-center space-x-2 mt-3">
+          
+          <div class="flex items-center space-x-2 mt-3 pl-6">
             <span class="material-icons-outlined text-gray-400 text-sm">add</span>
             <input type="text" id="modal-new-item" placeholder="Lägg till punkt..." onkeydown="handleModalAddItem(event)" class="w-full text-sm outline-none bg-transparent border-b border-transparent focus:border-gray-400 py-1">
           </div>
         </div>
 
         <div id="modal-completed-section" class="pt-4 border-t border-black/10 hidden">
-          <div class="text-xs font-medium text-gray-500 mb-2 flex items-center">
+          <div class="text-xs font-medium text-gray-500 mb-2 flex items-center pl-6">
             <span class="material-icons-outlined text-sm mr-1">done_all</span> Avklarade punkter
           </div>
           <div id="modal-completed-items" class="space-y-2"></div>
@@ -116,11 +119,11 @@
     let fileId = null;
     let selectedNewColor = '#ffffff';
     let currentEditNoteId = null;
+    let draggedItemId = null;
     let notesData = { notes: [] };
     let tokenClient;
 
     window.onload = () => {
-      // Sätt upp Token Client för Google Drive API
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -135,17 +138,14 @@
         },
       });
 
-      // Tyst / Automatisk inloggning (Single Sign-On / One Tap)
       google.accounts.id.initialize({
         client_id: CLIENT_ID,
         auto_select: true,
         callback: () => {
-          // Begär tyst åtkomst-token om användaren redan har en giltig session
           tokenClient.requestAccessToken({ prompt: '' });
         }
       });
 
-      // Försök logga in automatiskt i bakgrunden vid laddning
       tokenClient.requestAccessToken({ prompt: '' });
     };
 
@@ -291,14 +291,13 @@
       await saveToDrive();
     }
 
-    // Uppdaterad med ÅR i tidsstämpeln
     function formatDate(isoString) {
       if (!isoString) return '';
       const date = new Date(isoString);
       return date.toLocaleString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
-    /* MODAL-LOGIK */
+    /* MODAL-LOGIK & DRAG AND DROP */
     function openEditModal(noteId) {
       currentEditNoteId = noteId;
       renderModalContent();
@@ -331,9 +330,16 @@
       const activeItems = note.items ? note.items.filter(i => !i.is_completed) : [];
       const completedItems = note.items ? note.items.filter(i => i.is_completed) : [];
 
+      // Rendera Aktiva med Drag & Drop
       activeItemsContainer.innerHTML = activeItems.map(item => `
-        <div class="flex items-center space-x-2">
-          <input type="checkbox" onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300">
+        <div class="flex items-center space-x-2 py-1 px-1 rounded hover:bg-black/5 transition"
+             draggable="true" 
+             ondragstart="handleDragStart(event, '${item.id}')" 
+             ondragover="handleDragOver(event)" 
+             ondragleave="handleDragLeave(event)" 
+             ondrop="handleDrop(event, '${item.id}')">
+          <span class="material-icons-outlined text-gray-400 text-sm cursor-grab active:cursor-grabbing">drag_indicator</span>
+          <input type="checkbox" onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300 cursor-pointer">
           <input type="text" value="${item.text}" onchange="updateItemText('${note.id}', '${item.id}', this.value)" class="w-full text-sm bg-transparent outline-none text-gray-800">
         </div>
       `).join('');
@@ -341,7 +347,7 @@
       if (completedItems.length > 0) {
         completedSection.classList.remove('hidden');
         completedItemsContainer.innerHTML = completedItems.map(item => `
-          <div class="flex items-center justify-between space-x-2 opacity-60">
+          <div class="flex items-center justify-between space-x-2 opacity-60 pl-6">
             <div class="flex items-center space-x-2 flex-grow">
               <input type="checkbox" checked onchange="toggleItem('${note.id}', '${item.id}')" class="h-4 w-4 text-blue-600 rounded border-gray-300">
               <span class="text-sm line-through text-gray-700">${item.text}</span>
@@ -352,6 +358,46 @@
       } else {
         completedSection.classList.add('hidden');
       }
+    }
+
+    /* Drag and Drop händelsehanterare */
+    function handleDragStart(event, itemId) {
+      draggedItemId = itemId;
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      event.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(event) {
+      event.currentTarget.classList.remove('drag-over');
+    }
+
+    async function handleDrop(event, targetItemId) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('drag-over');
+
+      if (!draggedItemId || draggedItemId === targetItemId) return;
+
+      const note = notesData.notes.find(n => n.id === currentEditNoteId);
+      if (note && note.items) {
+        const draggedIndex = note.items.findIndex(i => i.id === draggedItemId);
+        const targetIndex = note.items.findIndex(i => i.id === targetItemId);
+
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+          // Flytta elementet i arrayen
+          const [draggedItem] = note.items.splice(draggedIndex, 1);
+          note.items.splice(targetIndex, 0, draggedItem);
+
+          renderModalContent();
+          renderNotes();
+          await saveToDrive();
+        }
+      }
+      draggedItemId = null;
     }
 
     async function updateModalNote() {
