@@ -4,24 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Projekt</title>
+  
+  <!-- Tailwind CSS för snabb och responsiv styling -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts & Material Icons för ikonografi -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <!-- Google Identity Services bibliotek för OAuth2 / SSO -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <style>
     body { font-family: 'Roboto', sans-serif; }
+    /* Visuella indikatorer vid Drag & Drop */
     .drag-over { border-top: 2px solid #3b82f6; }
     .card-drag-over { border-left: 4px solid #3b82f6 !important; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
+  <!-- ==================== TOPPNAVIGERING ==================== -->
   <header class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center sticky top-0 z-10">
     <div class="flex items-center space-x-3">
       <span class="material-icons-outlined text-amber-500 text-3xl">lightbulb</span>
       <h1 class="text-xl font-medium text-gray-700">Projekt</h1>
     </div>
     <div id="auth-section">
+      <!-- Inloggningsknapp visas endast om automatisk SSO misslyckas -->
       <button id="login-btn" onclick="handleAuth()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-md shadow-sm transition">
         Anslut Google Drive
       </button>
@@ -31,12 +39,15 @@
     </div>
   </header>
 
+  <!-- ==================== HUVUDINNEHÅLL ==================== -->
   <main class="max-w-5xl mx-auto p-4">
     <div id="app-content" class="hidden">
-      <!-- Skapa nytt kort -->
+      
+      <!-- SKAPA NYTT KORT (FORMULÄR) -->
       <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md border border-gray-200 p-4 mb-8">
         <input type="text" id="new-title" placeholder="Titel" class="w-full font-medium text-base outline-none mb-3 text-gray-800 placeholder-gray-500">
         
+        <!-- Dynamisk lista för nya punkter -->
         <div id="items-input-container" class="space-y-2 mb-3">
           <div class="flex items-center space-x-2">
             <span class="material-icons-outlined text-gray-400 text-sm">add</span>
@@ -49,6 +60,7 @@
         </button>
 
         <div class="flex justify-between items-center pt-2 border-t border-gray-100">
+          <!-- Färgväljare för nytt kort -->
           <div class="flex space-x-1" id="new-color-picker">
             <button onclick="selectNewColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border border-gray-300 ring-2 ring-blue-500" data-color="#ffffff"></button>
             <button onclick="selectNewColor('#fef3c7')" class="w-6 h-6 rounded-full bg-amber-100 border border-amber-200" data-color="#fef3c7"></button>
@@ -62,10 +74,10 @@
         </div>
       </div>
 
-      <!-- Rutnät för aktiva kort -->
+      <!-- RUTNÄT FÖR AKTIVA KORT (Masonry layout via Tailwind columns) -->
       <div id="notes-container" class="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4"></div>
 
-      <!-- PAPPERSKORG SEKTION -->
+      <!-- PAPPERSKORG (Visas endast om raderade kort finns) -->
       <div id="trash-section" class="mt-16 pt-8 border-t border-gray-300 hidden">
         <h2 class="text-lg font-medium text-gray-600 mb-4 flex items-center">
           <span class="material-icons-outlined mr-2">delete</span> Papperskorg
@@ -75,7 +87,7 @@
     </div>
   </main>
 
-  <!-- REDIGERINGSMODAL (Förstorat läge) -->
+  <!-- ==================== REDIGERINGSMODAL (FÖRSTORAT LÄGE) ==================== -->
   <div id="edit-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
     <div id="modal-card" class="w-full max-w-lg rounded-xl shadow-2xl p-6 relative flex flex-col max-h-[90vh] transition-all">
       
@@ -87,6 +99,7 @@
 
       <div class="overflow-y-auto flex-grow space-y-4 pr-1">
         <div>
+          <!-- Aktiva punkter i modalen -->
           <div id="modal-active-items" class="space-y-2"></div>
           
           <div class="flex items-center space-x-2 mt-3 pl-6">
@@ -95,6 +108,7 @@
           </div>
         </div>
 
+        <!-- Avklarade/Arkiverade punkter -->
         <div id="modal-completed-section" class="pt-4 border-t border-black/10 hidden">
           <div class="text-xs font-medium text-gray-500 mb-2 flex items-center pl-6">
             <span class="material-icons-outlined text-sm mr-1">done_all</span> Avklarade punkter
@@ -103,7 +117,7 @@
         </div>
       </div>
 
-      <!-- Modal Footer -->
+      <!-- Modalens underdel: Färg & Radera -->
       <div class="mt-6 pt-4 border-t border-black/10 flex justify-between items-center">
         <div class="flex space-x-1" id="modal-color-picker">
           <button onclick="changeModalColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border border-gray-300" data-color="#ffffff"></button>
@@ -125,34 +139,47 @@
     </div>
   </div>
 
+  <!-- ==================== JAVASCRIPT LOGIK ==================== -->
   <script>
+    // Konfiguration för Google API
     const CLIENT_ID = '940508107225-2h91m1o4he6r27g1q7hgtaq0f6127dd8.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file'; // Begränsad åtkomst (endast egna filer)
     
+    // Globala variabler för tillståndshantering (State)
     let accessToken = null;
     let fileId = null;
     let selectedNewColor = '#ffffff';
     let currentEditNoteId = null;
     let draggedItemId = null;
     let draggedCardId = null;
+    
+    // Huvudstrukturen för all data som sparas till Drive
     let notesData = { notes: [], trash: [] };
     let tokenClient;
 
+    /**
+     * Körs automatiskt när webbsidan har laddats helt.
+     * Initierar Google Auth och försöker logga in användaren automatiskt (SSO).
+     */
     window.onload = () => {
+      // 1. Skapa Google Token Client för OAuth2
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
         callback: async (response) => {
           if (response.access_token) {
             accessToken = response.access_token;
+            // Uppdatera UI till inloggat läge
             document.getElementById('login-btn').classList.add('hidden');
             document.getElementById('status-indicator').classList.remove('hidden');
             document.getElementById('app-content').classList.remove('hidden');
+            // Hämta eller skapa databasfilen på Drive
             await loadOrInitDriveFile();
           }
         },
       });
 
+      // 2. Initiera Google One Tap / SSO
       google.accounts.id.initialize({
         client_id: CLIENT_ID,
         auto_select: true,
@@ -161,13 +188,20 @@
         }
       });
 
+      // 3. Tyst begäran om access-token i bakgrunden
       tokenClient.requestAccessToken({ prompt: '' });
     };
 
+    /**
+     * Manuell inloggning om tyst SSO inte lyckades.
+     */
     function handleAuth() {
       tokenClient.requestAccessToken({ prompt: 'consent' });
     }
 
+    /**
+     * Ändrar aktiv färg i skapar-formuläret.
+     */
     function selectNewColor(color) {
       selectedNewColor = color;
       document.querySelectorAll('#new-color-picker button').forEach(btn => {
@@ -176,6 +210,9 @@
       });
     }
 
+    /**
+     * Lägger till en ny tom inmatningsrad i skapar-formuläret.
+     */
     function addInputRow() {
       const container = document.getElementById('items-input-container');
       const div = document.createElement('div');
@@ -188,6 +225,9 @@
       div.querySelector('input').focus();
     }
 
+    /**
+     * Om användaren trycker Enter i en punkt, skapa automatiskt en ny rad.
+     */
     function handleItemKeyDown(event) {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -195,6 +235,12 @@
       }
     }
 
+    // ==================== GOOGLE DRIVE API INTEGRATION ====================
+
+    /**
+     * Söker efter 'keep_notes.json' på Google Drive.
+     * Om den finns läses den in, annars skapas en ny fil.
+     */
     async function loadOrInitDriveFile() {
       const searchRes = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=name='keep_notes.json' and trashed=false`,
@@ -204,6 +250,7 @@
 
       if (searchData.files && searchData.files.length > 0) {
         fileId = searchData.files[0].id;
+        // Hämta filens faktiska innehåll
         const fileRes = await fetch(
           `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -211,11 +258,15 @@
         notesData = await fileRes.json();
         if (!notesData.trash) notesData.trash = [];
       } else {
+        // Filen hittades inte, skapa en på Drive
         await createDriveFile();
       }
       renderNotes();
     }
 
+    /**
+     * Skapar en ny 'keep_notes.json' i rotmappen på användarens Google Drive.
+     */
     async function createDriveFile() {
       const metadata = { name: 'keep_notes.json', mimeType: 'application/json' };
       const form = new FormData();
@@ -231,6 +282,9 @@
       fileId = file.id;
     }
 
+    /**
+     * Sparar det nuvarande 'notesData'-tillståndet till Google Drive.
+     */
     async function saveToDrive() {
       await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
         method: 'PATCH',
@@ -242,6 +296,11 @@
       });
     }
 
+    // ==================== LOGIK FÖR ANTECKNINGAR OCH PUNKTER ====================
+
+    /**
+     * Skapar ett nytt kort baserat på formulärets innehåll.
+     */
     async function addNote() {
       const titleInput = document.getElementById('new-title');
       const itemInputs = document.querySelectorAll('.new-item-input');
@@ -269,8 +328,9 @@
         created_at: new Date().toISOString()
       };
 
-      notesData.notes.unshift(newNote);
+      notesData.notes.unshift(newNote); // Lägg först i listan
       
+      // Återställ formuläret
       titleInput.value = '';
       document.getElementById('items-input-container').innerHTML = `
         <div class="flex items-center space-x-2">
@@ -284,6 +344,9 @@
       await saveToDrive();
     }
 
+    /**
+     * Växlar en punkts status mellan klar/ej klar och sätter completed_at-tidsstämpeln.
+     */
     async function toggleItem(noteId, itemId, event) {
       if(event) event.stopPropagation();
       const note = notesData.notes.find(n => n.id === noteId);
@@ -299,6 +362,9 @@
       }
     }
 
+    /**
+     * Tar bort en enskild punkt från ett kort.
+     */
     async function deleteItem(noteId, itemId) {
       const note = notesData.notes.find(n => n.id === noteId);
       if (note && note.items) {
@@ -309,6 +375,9 @@
       }
     }
 
+    /**
+     * Flyttar ett kort från aktiva listan till papperskorgen.
+     */
     async function moveToTrash(id, event) {
       if(event) event.stopPropagation();
       const noteIndex = notesData.notes.findIndex(n => n.id === id);
@@ -328,6 +397,9 @@
       }
     }
 
+    /**
+     * Återställer ett kort från papperskorgen till aktiva listan.
+     */
     async function restoreFromTrash(id) {
       const trashIndex = notesData.trash.findIndex(n => n.id === id);
       if (trashIndex !== -1) {
@@ -338,19 +410,26 @@
       }
     }
 
+    /**
+     * Tömmer/Raderar ett kort permanent från papperskorgen.
+     */
     async function permanentlyDelete(id) {
       notesData.trash = notesData.trash.filter(n => n.id !== id);
       renderNotes();
       await saveToDrive();
     }
 
+    /**
+     * Hjälpfunktion för att formatera ISO-datum till svensk lokal tid (inklusive år).
+     */
     function formatDate(isoString) {
       if (!isoString) return '';
       const date = new Date(isoString);
       return date.toLocaleString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
-    /* MODAL-LOGIK */
+    // ==================== MODAL LOGIK & DRAG AND DROP ====================
+
     function openEditModal(noteId) {
       currentEditNoteId = noteId;
       renderModalContent();
@@ -362,13 +441,15 @@
       document.getElementById('edit-modal').classList.add('hidden');
     }
 
+    /**
+     * Fyller redigeringsmodalen med kortets aktuella data.
+     */
     function renderModalContent() {
       const note = notesData.notes.find(n => n.id === currentEditNoteId);
       if (!note) return;
 
       const modalCard = document.getElementById('modal-card');
       modalCard.style.backgroundColor = note.color;
-
       document.getElementById('modal-title').value = note.title || '';
 
       document.querySelectorAll('#modal-color-picker button').forEach(btn => {
@@ -383,6 +464,7 @@
       const activeItems = note.items ? note.items.filter(i => !i.is_completed) : [];
       const completedItems = note.items ? note.items.filter(i => i.is_completed) : [];
 
+      // Rendera Aktiva med Drag & Drop-stöd
       activeItemsContainer.innerHTML = activeItems.map(item => `
         <div class="flex items-center space-x-2 py-1 px-1 rounded hover:bg-black/5 transition group/item"
              draggable="true" 
@@ -399,6 +481,7 @@
         </div>
       `).join('');
 
+      // Rendera Avklarade punkter
       if (completedItems.length > 0) {
         completedSection.classList.remove('hidden');
         completedItemsContainer.innerHTML = completedItems.map(item => `
@@ -420,7 +503,7 @@
       }
     }
 
-    /* DRAG & DROP FÖR ENSTAKA PUNKTER INNE I MODALEN */
+    /* === DRAG & DROP: ENSTAKA PUNKTER INNE I MODALEN === */
     function handleItemDragStart(event, itemId) {
       draggedItemId = itemId;
       event.dataTransfer.effectAllowed = 'move';
@@ -452,6 +535,7 @@
         const targetIndex = note.items.findIndex(i => i.id === targetItemId);
 
         if (draggedIndex !== -1 && targetIndex !== -1) {
+          // Byt plats i arrayen
           const [draggedItem] = note.items.splice(draggedIndex, 1);
           note.items.splice(targetIndex, 0, draggedItem);
 
@@ -463,7 +547,7 @@
       draggedItemId = null;
     }
 
-    /* DRAG & DROP FÖR HELA KORT I RUTNÄTET */
+    /* === DRAG & DROP: HELA KORT I RUTNÄTET === */
     function handleCardDragStart(event, cardId) {
       draggedCardId = cardId;
       event.dataTransfer.effectAllowed = 'move';
@@ -489,6 +573,7 @@
       const targetIndex = notesData.notes.findIndex(n => n.id === targetCardId);
 
       if (draggedIndex !== -1 && targetIndex !== -1) {
+        // Byt plats på korten i huvudarrayen
         const [draggedCard] = notesData.notes.splice(draggedIndex, 1);
         notesData.notes.splice(targetIndex, 0, draggedCard);
 
@@ -553,6 +638,11 @@
       }
     }
 
+    // ==================== RENDERING AV GRÄNSSNITTET ====================
+
+    /**
+     * Renderar om alla aktiva kort och papperskorgen i DOM:en.
+     */
     function renderNotes() {
       const container = document.getElementById('notes-container');
       container.innerHTML = notesData.notes.map(note => {
@@ -604,6 +694,7 @@
         `;
       }).join('');
 
+      // Rendera Papperskorgssektionen
       const trashSection = document.getElementById('trash-section');
       const trashContainer = document.getElementById('trash-container');
 
